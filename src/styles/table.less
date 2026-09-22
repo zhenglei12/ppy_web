@@ -1,0 +1,18 @@
+@table-border: 1px solid #dddddd;
+
+.cus-table:not(.no-border) {
+    width: 100%;
+    border-top: @table-border;
+    border-left: @table-border;
+
+    th:not(.no-border),
+    td:not(.no-border) {
+        border-right: @table-border;
+        border-bottom: @table-border;
+    }
+
+    th,
+    td {
+        padding: 10px 16px;
+    }
+}

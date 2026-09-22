@@ -1,0 +1,108 @@
+@import "./table.less";
+@import "./business.less";
+
+.cus-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  .btns {
+    .ant-btn {
+      margin-left: 16px;
+    }
+  }
+}
+
+.cus-input-group {
+  margin-bottom: 5px;
+
+  & > *:hover {
+    z-index: 1;
+  }
+
+  & > *:not(:first-child) {
+    /deep/ input,
+    /deep/ .ant-select-selection {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+  }
+
+  & > *:not(:last-child) {
+    margin-right: -1px;
+
+    /deep/ input,
+    /deep/ .ant-select-selection {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+  }
+}
+
+.cus-draggable {
+  cursor: move;
+}
+
+.cus-nowrap {
+  white-space: nowrap;
+}
+
+.cus-drawer {
+  .ant-drawer-body {
+    margin-bottom: 53px;
+  }
+
+  &-footer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    border-top: 1px solid #e9e9e9;
+    padding: 10px 16px;
+    background: #fff;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+
+    .ant-btn {
+      margin-left: 10px;
+
+      &:first-of-type {
+        margin: 0;
+      }
+    }
+  }
+}
+
+.cus-pointer {
+  cursor: pointer;
+}
+
+// 重写ant样式
+.ant-table-body {
+  overflow-x: auto;
+}
+
+.ant-modal-body {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.ant-notification-notice-description {
+  white-space: pre-wrap;
+}
+
+.ant-select {
+  width: 100%;
+}
+
+.ant-drawer-content-wrapper {
+  min-width: 400px;
+}
+
+.ant-drawer-header {
+  position: sticky;
+  top: 0;
+}
