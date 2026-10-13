@@ -272,10 +272,7 @@ export default {
     },
     formatSalary(value) {
       if (value === null || value === undefined || value === "") return "--";
-      return `¥${Number(value).toLocaleString("zh-CN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
+      return `¥${Number(value).toFixed(2)}`;
     },
     async refreshEmployees() {
       await Promise.all([this._getList(), this.getStatistics()]);

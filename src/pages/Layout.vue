@@ -2,9 +2,9 @@
   <a-layout class="app-shell">
     <a-layout-sider class="app-sidebar" :width="282" :collapsed-width="78" v-model="collapsed" :trigger="null" collapsible>
       <div class="brand" @click="goto('/home')">
-        <img class="brand-logo" src="~@/assets/logo.png" alt="朴朴鹰" />
+        <img class="brand-logo" src="~@/assets/logo.png" alt="扑扑鹰" />
         <div v-if="!collapsed" class="brand-copy">
-          <strong>朴朴鹰</strong>
+          <strong>扑扑鹰</strong>
           <span>总部经营系统</span>
         </div>
       </div>

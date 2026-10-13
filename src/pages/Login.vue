@@ -5,9 +5,9 @@
 
     <section class="login-intro">
       <div class="brand">
-        <img class="brand-logo" src="~@/assets/logo.png" alt="朴朴鹰" />
+        <img class="brand-logo" src="~@/assets/logo.png" alt="扑扑鹰" />
         <div class="brand-copy">
-          <strong>朴朴鹰</strong>
+          <strong>扑扑鹰</strong>
           <span>总部经营系统</span>
         </div>
       </div>
@@ -34,14 +34,14 @@
 
     <section class="login-panel">
       <div class="mobile-brand">
-        <img class="brand-logo" src="~@/assets/logo.png" alt="朴朴鹰" />
-        <strong>朴朴鹰</strong>
+        <img class="brand-logo" src="~@/assets/logo.png" alt="扑扑鹰" />
+        <strong>扑扑鹰</strong>
       </div>
 
       <div class="login-card" @keydown.enter="login">
         <div class="login-heading">
           <span class="welcome-icon"><a-icon type="user" /></span>
-          <h1>朴朴鹰管理系统</h1>
+          <h1>扑扑鹰管理系统</h1>
           <p>欢迎回来，请登录您的管理账号</p>
         </div>
 
@@ -66,7 +66,7 @@
         <p class="login-tip"><a-icon type="safety-certificate" /> 系统数据已加密保护，请妥善保管账号信息</p>
       </div>
 
-      <div class="copyright">© 2026 朴朴鹰管理系统</div>
+      <div class="copyright">© 2026 扑扑鹰管理系统</div>
     </section>
   </main>
 </template>

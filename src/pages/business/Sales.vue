@@ -58,7 +58,7 @@ export default {
   },
   created() { this.load(); },
   methods: {
-    money(value) { return `¥${Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
+    money(value) { return `¥${Number(value || 0).toFixed(2)}`; },
     percent(value, total) { return total ? Math.min(100, Math.round(Number(value) * 100 / total)) : 0; },
     customerName(item) { return item.customer_legal_name || (item.customer && (item.customer.brand_name || item.customer.legal_name)) || "--"; },
     goOrder(item) { this.$router.push({ path: "/order", query: { order_id: item.id } }); },

@@ -12,7 +12,7 @@
         <div class="finance-notices">
           <div v-for="order in pendingOrders" :key="`order-${order.id}`" class="finance-notice finance-order-notice">
             <span class="notice-number finance-order-number">审</span>
-            <div><strong>订单待财务审核</strong><p>{{ order.order_no }} · {{ order.customer_legal_name || '--' }} · 待收 {{ money(Number(order.payable_amount || 0) - Number(order.paid_amount || 0)) }}</p></div>
+            <div><strong>订单待财务审核</strong><p>{{ order.order_no }} · {{ order.customer_legal_name || '--' }} · 待收 {{ money(Math.max(0, Number(order.payable_amount || 0) - Number(order.paid_amount || 0) - Number(order.final_payment_amount || 0))) }}</p></div>
             <a class="finance-order-link" @click="goOrder(order)">查看订单 →</a>
           </div>
           <a-empty v-if="!pendingOrders.length" description="暂无待审核订单" />
@@ -48,7 +48,7 @@ export default {
   },
   created() { this.load(); },
   methods: {
-    money(value) { return `¥${Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
+    money(value) { return `¥${Number(value || 0).toFixed(2)}`; },
     percent(value, total) { return total ? Math.min(100, Math.round(Number(value) * 100 / total)) : 0; },
     load() {
       BusinessApi.financeDashboard().then(data => {
@@ -56,6 +56,7 @@ export default {
           { icon: "file-text", tone: "blue", label: "合同金额", value: this.money(data.contract_amount), compare: "当前可见范围" },
           { icon: "clock-circle", tone: "orange", label: "待确认金额", value: this.money(data.pending_amount), compare: `${data.pending_count || 0} 笔待审核` },
           { icon: "pie-chart", tone: "orange", label: "待收金额", value: this.money(data.receivable_amount), compare: `${data.receivable_count || 0} 笔` },
+          { icon: "wallet", tone: "blue", label: "尾款金额", value: this.money(data.final_payment_amount), compare: "当前可见范围" },
           { icon: "database", tone: "green", label: "已收金额", value: this.money(data.confirmed_amount), compare: `${data.confirmed_count || 0} 笔` },
         ];
         this.paymentStatus = data.payment_status_distribution || {};

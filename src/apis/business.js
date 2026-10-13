@@ -8,5 +8,6 @@ export default {
   financePlans: data => http.post("api/business/finance/payment-plans/list", data),
   weiwenjiaCustomers: data => http.post("api/business/weiwenjia/customers/list", data),
   syncWeiwenjiaCustomers: () => http.post("api/business/weiwenjia/customers/sync"),
-  weiwenjiaCrmDashboard: data => http.get("api/business/weiwenjia/crm/dashboard", { params: data }),
+  weiwenjiaCrmDashboard: data => http.get("api/business/weiwenjia/crm/dashboard", data),
+  syncWeiwenjiaCrm: data => http.post("api/business/weiwenjia/crm/sync", data, { acl: "crm.followup.manage", timeout: 120000 }),
 };

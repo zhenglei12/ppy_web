@@ -163,7 +163,7 @@ export default {
   },
   created() { this.loadSheets(); },
   methods: {
-    money(value) { return `¥${Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
+    money(value) { return `¥${Number(value || 0).toFixed(2)}`; },
     monthText(value) { return value ? `${value.slice(0, 4)}年${Number(value.slice(5, 7))}月` : "--"; },
     hasAction(row, action) { return (row.available_actions || []).includes(action); },
     loadSheets(page) { if (page) this.sheets.page = page; this.sheets.loading = true; PayrollApi.sheets({ ...this.filters, page: this.sheets.page, pageSize: this.sheets.pageSize }).then(res => { this.sheets.list = res.list || []; this.sheets.total = res.total || 0; }).finally(() => { this.sheets.loading = false; }); },

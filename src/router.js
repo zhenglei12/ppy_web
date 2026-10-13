@@ -201,7 +201,7 @@ const router = new Router({
 });
 
 router.beforeEach((to, _from, next) => {
-  document.title = `${(to.meta && to.meta.title) || "经营系统"} - 朴朴鹰`;
+  document.title = `${(to.meta && to.meta.title) || "经营系统"} - 扑扑鹰`;
   if (to.name != "login") {
     Promise.all([Auth.check(), Acl.check()])
       .then(() => {

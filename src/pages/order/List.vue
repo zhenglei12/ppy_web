@@ -9,15 +9,15 @@
     </header>
 
     <div class="metric-grid">
-      <metric-card icon="file-done" tone="green" label="订单数量" :value="`${summary.count} 单`" compare="当前筛选" />
       <metric-card icon="pay-circle" tone="blue" label="合同总额" :value="money(summary.contract)" compare="当前页" />
       <metric-card icon="check-circle" tone="green" label="已收金额" :value="money(summary.paid)" compare="当前页" />
+      <metric-card icon="wallet" tone="blue" label="尾款金额" :value="money(summary.finalPayment)" compare="当前页" />
       <metric-card icon="alert" tone="orange" label="待收金额" :value="money(summary.receivable)" compare="当前页" />
     </div>
 
     <section class="panel management-panel">
       <div class="panel-head management-panel-head">
-        <div><h2>订单列表</h2><p>列表范围由部门、上下级关系和角色权限自动确定。</p></div>
+        <div><h2>订单列表 <span class="order-list-count">{{ orders.total }} 单</span></h2><p>列表范围由部门、上下级关系和角色权限自动确定。</p></div>
         <a-form-model layout="inline" class="order-search">
           <a-form-model-item><a-input v-model="filters.keyword" allowClear placeholder="订单号 / 客户 / 产品" @pressEnter="loadOrders(1)" /></a-form-model-item>
           <a-form-model-item><a-select v-model="filters.current_stage" allowClear placeholder="当前阶段"><a-select-option v-for="(label,key) in stageMap" :key="key" :value="key">{{ label }}</a-select-option></a-select></a-form-model-item>
@@ -29,15 +29,10 @@
         </a-form-model>
       </div>
 
-      <a-table :columns="columns" :data-source="orders.list" :loading="orders.loading" rowKey="id" :scroll="{ x: 2360 }"
+      <a-table :columns="columns" :data-source="orders.list" :loading="orders.loading" rowKey="id" :scroll="{ x: 1460 }"
         :pagination="{ total: orders.total, current: orders.page, pageSize: orders.pageSize, showSizeChanger: true, showTotal: total => `共 ${total} 条` }" @change="tableChange">
-        <template slot="customer" slot-scope="row">
-          <div class="cell-lines">
-            <span>联系人：{{ row.contact ? row.contact.contact_name : '--' }}</span>
-            <span>手机：{{ row.customer_mobile || (row.contact && row.contact.mobile) || '--' }}</span>
-            <span>微信：{{ row.customer_wechat || '--' }}</span>
-          </div>
-        </template>
+        <template slot="customerShortName" slot-scope="row">{{ customerShortName(row) }}</template>
+        <template slot="industry" slot-scope="value">{{ value || '--' }}</template>
         <template slot="legalName" slot-scope="value">{{ value || "--" }}</template>
         <template slot="creditCode" slot-scope="value">{{ value || "--" }}</template>
         <template slot="paymentVoucher" slot-scope="files">
@@ -50,18 +45,23 @@
           </div>
           <span v-else>--</span>
         </template>
-        <template slot="product" slot-scope="row"><div class="cell-lines"><span>产品类型：{{ productTypeMap[row.product_type] || row.product_type || '--' }}</span><span>行业：{{ row.customer_industry || '--' }}</span></div></template>
+        <template slot="productType" slot-scope="value">{{ productTypeMap[value] || value || '--' }}</template>
         <template slot="amount" slot-scope="value"><strong>{{ money(value) }}</strong></template>
         <template slot="stage" slot-scope="value"><span class="order-status" :class="value">{{ stageMap[value] || value }}</span></template>
         <template slot="health" slot-scope="value"><span class="health-tag" :class="value"><i />{{ healthMap[value] || value }}</span></template>
         <template slot="optimizer" slot-scope="row">{{ row.optimizer ? row.optimizer.name : "--" }}</template>
+        <template slot="currentServiceStatus" slot-scope="value">{{ currentServiceStatus(value) }}</template>
         <template slot="operate" slot-scope="row">
           <div class="row-actions">
             <a @click="openDetail(row)">详情</a>
             <a v-if="hasAction(row,'update')" @click="openEdit(row)">编辑</a>
             <a v-if="hasAction(row,'assign')" v-acl="'sales.order.assign'" @click="openAssign(row)">分配</a>
             <a v-if="hasAction(row,'change_status')" v-acl="'sales.order.status'" @click="openStatus(row)">修改状态</a>
+            <a v-acl="'sales.order.health_status'" @click="openHealthStatus(row)">健康状态</a>
             <a v-if="hasAction(row,'refund')" v-acl="'sales.order.refund'" @click="openRefund(row)">退款</a>
+            <a v-acl="'sales.order.final_payment'" @click="openFinalPayment(row)">添加尾款</a>
+            <a v-acl="'delivery.optimization_report.save'" @click="openReport(row)">填入报告</a>
+            <a v-acl="'delivery.optimization_report.list'" @click="openReportList(row)">报告列表</a>
             <a v-for="action in transitionActions(row)" :key="action.key" @click="handleTransition(row, action)">{{ action.label }}</a>
             <a-popconfirm v-if="hasAction(row,'delete')" title="确认删除该草稿订单？" @confirm="removeOrder(row)"><a class="danger-link">删除</a></a-popconfirm>
           </div>
@@ -112,6 +112,9 @@
 
         <div class="form-section-title">承诺与风险</div>
         <a-form-model-item label="销售承诺" :label-col="{span:3}" :wrapper-col="{span:20}"><a-textarea v-model="editForm.sales_commitment" :rows="2" /></a-form-model-item>
+        <a-row :gutter="20">
+          <a-col :span="12"><a-form-model-item label="企业目标提及率"><a-input-number v-model="editForm.enterprise_target_mention_rate" :min="0" :max="100" :precision="2" addon-after="%" placeholder="请输入0-100" /></a-form-model-item></a-col>
+        </a-row>
         <div class="check-grid">
           <a-checkbox v-model="editForm.ranking_commitment">存在排名承诺</a-checkbox><a-checkbox v-model="editForm.acquisition_commitment">存在获客/成交承诺</a-checkbox>
           <a-checkbox v-model="editForm.case_authorized">案例展示已授权</a-checkbox><a-checkbox v-model="editForm.logo_authorized">Logo使用已授权</a-checkbox><a-checkbox v-model="editForm.portrait_authorized">肖像使用已授权</a-checkbox>
@@ -136,7 +139,9 @@
       <template v-if="detail">
         <div class="detail-summary">
           <div><span>订单编号</span><b>{{ detail.order_no }}</b></div><div><span>当前阶段</span><b><i class="order-status" :class="detail.current_stage">{{ stageMap[detail.current_stage] }}</i></b></div>
-          <div><span>应付金额</span><b>{{ money(detail.payable_amount) }}</b></div><div><span>待收金额</span><b>{{ money(detail.receivable_amount) }}</b></div>
+          <div><span>应付金额</span><b>{{ money(detail.payable_amount) }}</b></div><div><span>确认金额</span><b>{{ money(detail.paid_amount) }}</b></div>
+          <div><span>尾款金额</span><b>{{ money(detail.final_payment_amount) }}</b></div><div><span>退款金额</span><b>{{ money(detail.refund_amount) }}</b></div>
+          <div><span>待收金额</span><b>{{ money(detailReceivable(detail)) }}</b></div>
         </div>
         <a-descriptions bordered :column="2" size="small">
           <a-descriptions-item label="客户">{{ customerName(detail) }}</a-descriptions-item><a-descriptions-item label="联系人">{{ detail.contact ? `${detail.contact.contact_name} ${detail.contact.mobile || ''}` : (detail.contact_name || '--') }}</a-descriptions-item>
@@ -146,8 +151,8 @@
           <a-descriptions-item label="销售">{{ detail.sales_user ? detail.sales_user.name : '--' }}</a-descriptions-item><a-descriptions-item label="当前负责人">{{ detail.owner ? detail.owner.name : '--' }}</a-descriptions-item>
           <a-descriptions-item label="优化师">{{ detail.optimizer ? detail.optimizer.name : '--' }}</a-descriptions-item><a-descriptions-item label="产品类型">{{ productTypeMap[detail.product_type] || detail.product_type || '--' }}</a-descriptions-item>
           <a-descriptions-item label="截止时间">{{ detail.next_action_at || '--' }}</a-descriptions-item>
+          <a-descriptions-item label="企业目标提及率">{{ rate(detail.enterprise_target_mention_rate) }}</a-descriptions-item>
           <a-descriptions-item label="客诉历史" :span="2">{{ detail.complaint_history || '--' }}</a-descriptions-item>
-          <a-descriptions-item label="退款金额">{{ money(detail.refund_amount) }}</a-descriptions-item>
           <a-descriptions-item label="退款原因" :span="2">{{ detail.refund_reason || '--' }}</a-descriptions-item>
         </a-descriptions>
         <h3 class="drawer-title">订单附件</h3>
@@ -196,6 +201,18 @@
       </a-form-model>
     </a-modal>
 
+    <a-modal v-model="healthStatusVisible" title="修改健康状态" width="520px" wrapClassName="business-edit-modal" :confirmLoading="saving" @ok="saveHealthStatus">
+      <a-form-model layout="vertical">
+        <a-form-model-item label="健康状态" required>
+          <a-select v-model="healthStatusForm.health_status" placeholder="请选择健康状态">
+            <a-select-option value="green">正常</a-select-option>
+            <a-select-option value="yellow">预警</a-select-option>
+            <a-select-option value="red">风险</a-select-option>
+          </a-select>
+        </a-form-model-item>
+      </a-form-model>
+    </a-modal>
+
     <a-modal v-model="refundVisible" title="订单售后退款" width="560px" wrapClassName="business-edit-modal" :confirmLoading="saving" :maskClosable="false" @ok="saveRefund">
       <a-form-model layout="vertical">
         <a-form-model-item label="退款金额" required><a-input-number v-model="refundForm.refund_amount" :min="0.01" :precision="2" style="width:100%" /></a-form-model-item>
@@ -206,6 +223,43 @@
           </a-upload>
         </a-form-model-item>
       </a-form-model>
+    </a-modal>
+
+    <a-modal v-model="finalPaymentVisible" title="添加订单尾款" width="560px" wrapClassName="business-edit-modal" :confirmLoading="saving" :maskClosable="false" @ok="saveFinalPayment">
+      <a-form-model layout="vertical">
+        <a-form-model-item label="尾款金额" required><a-input-number v-model="finalPaymentForm.final_payment_amount" :min="0.01" :precision="2" style="width:100%" placeholder="请输入尾款金额" /></a-form-model-item>
+        <a-form-model-item label="尾款截图" required>
+          <a-upload accept="image/*" :file-list="finalPaymentFiles" :customRequest="addFinalPaymentFile" :remove="removeFinalPaymentFile">
+            <a-button><a-icon type="upload" />上传尾款截图</a-button>
+          </a-upload>
+        </a-form-model-item>
+      </a-form-model>
+    </a-modal>
+
+    <a-modal v-model="reportVisible" :title="reportForm.id ? '编辑优化报告' : '填入优化报告'" width="820px" wrapClassName="business-edit-modal" :confirmLoading="saving" :maskClosable="false" @ok="saveReport">
+      <a-form-model :model="reportForm" layout="vertical" class="optimization-report-form">
+        <a-row :gutter="20">
+          <a-col :span="12"><a-form-model-item label="项目名称" required><a-input v-model="reportForm.project_name" placeholder="请输入项目名称" /></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="服务周期" required><a-select v-model="reportForm.service_cycle" placeholder="请选择服务周期"><a-select-option value="one_month">一个月服务</a-select-option><a-select-option value="three_months">三个月服务</a-select-option><a-select-option value="annual">年度服务</a-select-option></a-select></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="当前优化阶段" required><a-select v-model="reportForm.optimization_stage" placeholder="请选择优化阶段"><a-select-option value="first">第一阶段</a-select-option><a-select-option value="second">第二阶段</a-select-option><a-select-option value="third">第三阶段</a-select-option></a-select></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="目前提及率"><a-input-number v-model="reportForm.current_mention_rate" :min="0" :max="100" :precision="0" addon-after="%" /></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="半月数据汇报时间"><a-date-picker v-model="reportForm.semi_monthly_report_at" showTime valueFormat="YYYY-MM-DD HH:mm:ss" /></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="数据报告时间"><a-date-picker v-model="reportForm.data_report_at" showTime valueFormat="YYYY-MM-DD HH:mm:ss" /></a-form-model-item></a-col>
+          <a-col :span="12"><a-form-model-item label="发文人（优化师）" required><user-select v-model="reportForm.publisher_user_id" :users="reportPublisherUsers" :disabled="isOptimizerRole" /></a-form-model-item></a-col>
+        </a-row>
+        <a-form-model-item label="核心工作内容"><a-textarea v-model="reportForm.core_work_content" :rows="3" placeholder="请输入核心工作内容" /></a-form-model-item>
+        <a-form-model-item label="优化难点及解决办法"><a-textarea v-model="reportForm.optimization_difficulties_and_solutions" :rows="4" placeholder="请输入目前优化难点及解决办法" /></a-form-model-item>
+      </a-form-model>
+    </a-modal>
+
+    <a-modal v-model="reportListVisible" :title="`${reportOrderName} · 报告列表`" width="1100px" wrapClassName="business-edit-modal report-list-modal" :footer="null">
+      <a-table :columns="reportColumns" :data-source="reports.list" :loading="reports.loading" rowKey="id" :scroll="{x:1250}"
+        :pagination="{total:reports.total,current:reports.page,pageSize:reports.pageSize,showTotal:total => `共 ${total} 条`}" @change="reportTableChange">
+        <template slot="serviceCycle" slot-scope="value">{{ serviceCycleMap[value] || value || '--' }}</template>
+        <template slot="optimizationStage" slot-scope="value">{{ optimizationStageMap[value] || value || '--' }}</template>
+        <template slot="mentionRate" slot-scope="value">{{ reportRate(value) }}</template>
+        <template slot="reportPublisher" slot-scope="row">{{ row.publisher ? row.publisher.name : '--' }}</template>
+      </a-table>
     </a-modal>
 
     <a-modal v-model="transitionVisible" :title="transitionTarget.label" wrapClassName="business-edit-modal" :confirmLoading="saving" @ok="saveTransition">
@@ -239,45 +293,75 @@ const emptyOrderForm = () => ({
   product_type: "annual", contract_amount: 0, invoice_required: false,
   invoice_status: "not_applied", qualification_status: "pending", ranking_commitment: false,
   acquisition_commitment: false, case_authorized: false, logo_authorized: false, portrait_authorized: false,
+  enterprise_target_mention_rate: undefined,
 });
 
-const UserSelect = { functional: true, props: ["value", "users"], render(h, ctx) { return h("a-select", { props: { value: ctx.props.value, allowClear: true, showSearch: true, optionFilterProp: "children", placeholder: "请选择员工" }, on: { change: value => ctx.listeners.input(value) } }, (ctx.props.users || []).map(user => h("a-select-option", { key: user.id, props: { value: user.id } }, `${user.name}${user.position_name ? `（${user.position_name}）` : ""}`))); } };
+const emptyReportForm = () => ({
+  project_name: "", service_cycle: undefined, optimization_stage: undefined,
+  core_work_content: "", current_mention_rate: undefined, semi_monthly_report_at: undefined,
+  optimization_difficulties_and_solutions: "", publisher_user_id: undefined, data_report_at: undefined,
+});
+
+const UserSelect = { functional: true, props: ["value", "users", "disabled"], render(h, ctx) { return h("a-select", { props: { value: ctx.props.value, disabled: ctx.props.disabled, allowClear: !ctx.props.disabled, showSearch: true, optionFilterProp: "children", placeholder: "请选择员工" }, on: { change: value => ctx.listeners.input(value) } }, (ctx.props.users || []).map(user => h("a-select-option", { key: user.id, props: { value: user.id } }, `${user.name}${user.position_name ? `（${user.position_name}）` : ""}`))); } };
 
 export default {
   components: { MetricCard, UserSelect },
   data() {
     return {
-      filters: {}, createdRange: [], saving: false, editVisible: false, detailVisible: false, assignVisible: false, financeVisible: false, statusVisible: false, refundVisible: false, transitionVisible: false,
-      editForm: emptyOrderForm(), assignForm: {}, financeForm: {}, statusForm: {}, refundForm: {}, refundFiles: [], transitionForm: {}, transitionTarget: {}, detail: null, customers: [], contacts: [], users: [], optimizerUsers: [],
+      filters: {}, createdRange: [], saving: false, editVisible: false, detailVisible: false, assignVisible: false, financeVisible: false, statusVisible: false, healthStatusVisible: false, refundVisible: false, finalPaymentVisible: false, reportVisible: false, reportListVisible: false, transitionVisible: false,
+      editForm: emptyOrderForm(), assignForm: {}, financeForm: {}, statusForm: {}, healthStatusForm: {}, refundForm: {}, refundFiles: [], finalPaymentForm: {}, finalPaymentFiles: [], reportForm: emptyReportForm(), reportOrder: null, transitionForm: {}, transitionTarget: {}, detail: null, customers: [], contacts: [], users: [], optimizerUsers: [],
       attachmentTypes, attachmentLists: emptyAttachmentLists(),
       orders: { list: [], total: 0, page: 1, pageSize: 10, loading: false },
+      reports: { list: [], total: 0, page: 1, pageSize: 10, loading: false },
       stageMap: { draft: "草稿", sales_review: "销售主管审核", finance_confirm: "财务确认", tech_assign: "技术分单", service: "服务中", renewal: "续费跟进", completed: "已完成", cancelled: "已取消" },
       productTypeMap: { trial: "体验版", annual: "年度服务", other: "其他" }, healthMap: { green: "正常", yellow: "关注", red: "风险" },
+      serviceCycleMap: { one_month: "一个月服务", three_months: "三个月服务", annual: "年度服务" },
+      optimizationStageMap: { first: "第一阶段", second: "第二阶段", third: "第三阶段" },
       columns: [
-        { title: "订单编号", dataIndex: "order_no", width: 170 }, { title: "客户信息", scopedSlots: { customRender: "customer" }, width: 230 },
-        { title: "主体全称", dataIndex: "customer_legal_name", scopedSlots: { customRender: "legalName" }, width: 220 },
-        { title: "统一社会信用代码", dataIndex: "customer_credit_code", scopedSlots: { customRender: "creditCode" }, width: 190 },
-        { title: "收款图片", dataIndex: "payment_voucher_files", scopedSlots: { customRender: "paymentVoucher" }, width: 130 },
-        { title: "产品", scopedSlots: { customRender: "product" }, width: 180 }, { title: "应付金额", dataIndex: "payable_amount", scopedSlots: { customRender: "amount" }, width: 125 },
-        { title: "已收金额", dataIndex: "paid_amount", scopedSlots: { customRender: "amount" }, width: 125 }, { title: "待收金额", dataIndex: "receivable_amount", scopedSlots: { customRender: "amount" }, width: 125 }, { title: "阶段", dataIndex: "current_stage", scopedSlots: { customRender: "stage" }, width: 105 },
-        { title: "健康度", dataIndex: "health_status", scopedSlots: { customRender: "health" }, width: 95 }, { title: "销售", dataIndex: "sales_user.name", width: 100 }, { title: "优化师", scopedSlots: { customRender: "optimizer" }, width: 100 },
-        { title: "操作", scopedSlots: { customRender: "operate" }, fixed: "right", width: 320 },
+        { title: "订单编号", dataIndex: "order_no", width: 170 },
+        { title: "客户简称", scopedSlots: { customRender: "customerShortName" }, width: 180 },
+        { title: "行业", dataIndex: "customer_industry", scopedSlots: { customRender: "industry" }, width: 150 },
+        { title: "产品类型", dataIndex: "product_type", scopedSlots: { customRender: "productType" }, width: 120 },
+        { title: "当前阶段", dataIndex: "current_stage", scopedSlots: { customRender: "stage" }, width: 120 },
+        { title: "销售", dataIndex: "sales_user.name", width: 110 },
+        { title: "优化师", scopedSlots: { customRender: "optimizer" }, width: 110 },
+        { title: "当前服务状态", dataIndex: "current_service_status", scopedSlots: { customRender: "currentServiceStatus" }, width: 140 },
+        { title: "操作", scopedSlots: { customRender: "operate" }, fixed: "right", width: 440 },
+      ],
+      reportColumns: [
+        { title: "项目名称", dataIndex: "project_name", width: 170 },
+        { title: "服务周期", dataIndex: "service_cycle", scopedSlots: { customRender: "serviceCycle" }, width: 120 },
+        { title: "优化阶段", dataIndex: "optimization_stage", scopedSlots: { customRender: "optimizationStage" }, width: 110 },
+        { title: "目前提及率", dataIndex: "current_mention_rate", scopedSlots: { customRender: "mentionRate" }, width: 110 },
+        { title: "半月汇报时间", dataIndex: "semi_monthly_report_at", width: 170 },
+        { title: "数据报告时间", dataIndex: "data_report_at", width: 170 },
+        { title: "发文人", scopedSlots: { customRender: "reportPublisher" }, width: 100 },
+        { title: "创建时间", dataIndex: "created_at", width: 170 },
+        { title: "核心工作内容", dataIndex: "core_work_content", ellipsis: true, width: 200 },
       ],
     };
   },
   computed: {
     canEditPaidAmount() { return !!this.editForm.id && !!(this.$auth.isFinance || this.$auth.isAdmin); },
     financePaidOnly() { return !!this.editForm.id && !!this.$auth.isFinance && !this.$auth.isAdmin; },
-    summary() { return this.orders.list.reduce((s, row) => ({ count: s.count + 1, contract: s.contract + Number(row.contract_amount || 0), paid: s.paid + Number(row.paid_amount || 0), receivable: s.receivable + Number(row.receivable_amount || 0) }), { count: 0, contract: 0, paid: 0, receivable: 0 }); },
+    isOptimizerRole() { const user = this.$auth.user(); return !!(user && user.roles && user.roles.some(role => role.alias === "optimizer")); },
+    reportPublisherUsers() { const user = this.$auth.user(); return this.isOptimizerRole && user ? [user] : this.optimizerUsers; },
+    summary() { return this.orders.list.reduce((s, row) => ({ contract: s.contract + Number(row.contract_amount || 0), paid: s.paid + Number(row.paid_amount || 0), finalPayment: s.finalPayment + Number(row.final_payment_amount || 0), receivable: s.receivable + Math.max(0, Number(row.receivable_amount || 0) - Number(row.final_payment_amount || 0)) }), { contract: 0, paid: 0, finalPayment: 0, receivable: 0 }); },
     selectedCustomer() { return this.customers.find(item => item.id === this.editForm.customer_id); },
     customerRegion() { const item = this.selectedCustomer || {}; return [item.province, item.city, item.district].filter(Boolean).join(" / ") || "--"; },
-    detailAttachments() { if (!this.detail) return []; return attachmentTypes.concat([{ key: "refund_screenshot_files", label: "退款截图" }]).map(item => ({ ...item, files: this.detail[item.key] || [] })).filter(item => item.files.length); },
+    detailAttachments() { if (!this.detail) return []; return attachmentTypes.concat([{ key: "final_payment_screenshot_files", label: "尾款截图", single: true }, { key: "refund_screenshot_files", label: "退款截图" }]).map(item => { const value = this.detail[item.key]; return { ...item, files: item.single ? (value ? [value] : []) : (value || []) }; }).filter(item => item.files.length); },
+    reportOrderName() { return this.reportOrder ? (this.reportOrder.customer_legal_name || this.reportOrder.order_no || "订单") : "订单"; },
   },
   created() { this.loadOrders(); this.loadOptions(); const orderId = Number(this.$route.query.order_id || 0); if (orderId) this.openDetail({ id: orderId }); },
   methods: {
-    money(value) { return `¥${Number(value || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
+    money(value) { return `¥${Number(value || 0).toFixed(2)}`; },
+    rate(value) { return value === undefined || value === null || value === "" ? "--" : `${Number(value).toFixed(2)}%`; },
+    reportRate(value) { return value === undefined || value === null || value === "" ? "--" : `${Math.round(Number(value))}%`; },
     hasAction(row, action) { return (row.available_actions || []).includes(action); },
     customerName(row) { return row.customer ? (row.customer.brand_name || row.customer.legal_name) : "--"; },
+    customerShortName(row) { return row.customer ? (row.customer.brand_name || row.customer.legal_name || row.customer_legal_name || "--") : (row.customer_legal_name || "--"); },
+    currentServiceStatus(value) { return value === undefined || value === null || value === "" ? "0" : `${Math.round(Number(value))}%`; },
+    detailReceivable(order) { return Math.max(0, Number(order.receivable_amount || 0) - Number(order.final_payment_amount || 0)); },
     isImageUrl(url) { return /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url || ""); },
     fileName(url) { return decodeURIComponent((url || "").split("?")[0].split("/").pop() || "查看文件"); },
     loadOrders(page) { if (page) this.orders.page = page; this.orders.loading = true; OrderApi.list({ ...this.filters, page: this.orders.page, pageSize: this.orders.pageSize }).then(res => { this.orders.list = res.list || []; this.orders.total = res.total || 0; }).finally(() => { this.orders.loading = false; }); },
@@ -305,7 +389,7 @@ export default {
         return;
       }
       OrderApi.detail(row.id).then(detail => {
-        this.editForm = { ...emptyOrderForm(), ...detail, customer_name: detail.customer ? (detail.customer.legal_name || detail.customer.brand_name || '') : (detail.customer_name || ''), contact_name: detail.contact ? detail.contact.contact_name : (detail.contact_name || ''), customer_legal_name: detail.customer_legal_name || (detail.customer ? (detail.customer.legal_name || detail.customer.brand_name || '') : ''), contract_amount: Number(detail.contract_amount || 0), paid_amount: Number(detail.paid_amount || 0) };
+        this.editForm = { ...emptyOrderForm(), ...detail, customer_name: detail.customer ? (detail.customer.legal_name || detail.customer.brand_name || '') : (detail.customer_name || ''), contact_name: detail.contact ? detail.contact.contact_name : (detail.contact_name || ''), customer_legal_name: detail.customer_legal_name || (detail.customer ? (detail.customer.legal_name || detail.customer.brand_name || '') : ''), contract_amount: Number(detail.contract_amount || 0), paid_amount: Number(detail.paid_amount || 0), enterprise_target_mention_rate: detail.enterprise_target_mention_rate === null ? undefined : Number(detail.enterprise_target_mention_rate) };
         attachmentTypes.forEach(type => {
           this.attachmentLists[type.key] = (detail[type.key] || []).map(url => ({ uid: utils.uuid(), status: "done", name: url.split("/").pop(), url }));
         });
@@ -363,6 +447,8 @@ export default {
     saveAssign() { if (!this.assignForm.optimizer_id) return this.$message.warning("请选择优化师"); this.run(OrderApi.assign(this.assignForm), () => { this.assignVisible = false; this.loadOrders(); }); },
     openStatus(row) { this.statusForm = { id: row.id, current_stage: row.current_stage, status: row.current_stage === "renewal" ? "completed" : undefined, remark: "" }; this.statusVisible = true; },
     saveStatus() { if (!this.statusForm.status) return this.$message.warning("请选择订单状态"); this.run(OrderApi.updateStatus(this.statusForm), () => { this.statusVisible = false; this.loadOrders(); }); },
+    openHealthStatus(row) { this.healthStatusForm = { order_id: row.id, health_status: row.health_status || "green" }; this.healthStatusVisible = true; },
+    saveHealthStatus() { if (!this.healthStatusForm.health_status) return this.$message.warning("请选择健康状态"); this.run(OrderApi.updateHealthStatus(this.healthStatusForm), () => { this.healthStatusVisible = false; this.loadOrders(); }); },
     openRefund(row) { this.refundForm = { id: row.id, refund_amount: undefined, refund_reason: "" }; this.refundFiles = []; this.refundVisible = true; },
     async addRefundFile({ file, onSuccess, onError }) {
       file.status = "uploading";
@@ -382,6 +468,68 @@ export default {
         this.$message.success("退款申请已提交"); this.refundVisible = false; this.loadOrders();
       } finally { this.saving = false; }
     },
+    openFinalPayment(row) {
+      this.finalPaymentForm = { order_id: row.id, payable_amount: Number(row.payable_amount || 0), final_payment_amount: row.final_payment_amount ? Number(row.final_payment_amount) : undefined };
+      this.finalPaymentFiles = row.final_payment_screenshot_files ? [{ uid: utils.uuid(), status: "done", name: this.fileName(row.final_payment_screenshot_files), url: row.final_payment_screenshot_files }] : [];
+      this.finalPaymentVisible = true;
+    },
+    async addFinalPaymentFile({ file, onSuccess, onError }) {
+      file.status = "uploading";
+      this.finalPaymentFiles = [file];
+      try { file.url = await utils.getBase64(file); file.status = "done"; this.finalPaymentFiles = this.finalPaymentFiles.slice(); if (onSuccess) onSuccess({}, file); }
+      catch (error) { this.finalPaymentFiles = this.finalPaymentFiles.filter(item => item.uid !== file.uid); if (onError) onError(error); this.$message.error("尾款截图读取失败"); }
+    },
+    removeFinalPaymentFile(file) { this.finalPaymentFiles = this.finalPaymentFiles.filter(item => item.uid !== file.uid); return true; },
+    async saveFinalPayment() {
+      const f = this.finalPaymentForm;
+      if (!f.final_payment_amount) return this.$message.warning("请输入尾款金额");
+      if (Number(f.payable_amount || 0) > 0 && Number(f.final_payment_amount) > Number(f.payable_amount)) return this.$message.warning("尾款金额不能大于订单应付金额");
+      if (!this.finalPaymentFiles.length) return this.$message.warning("请上传尾款截图");
+      if (this.finalPaymentFiles.some(file => file.status === "uploading")) return this.$message.warning("尾款截图正在处理中");
+      this.saving = true;
+      try {
+        await upload.uploadList(this.finalPaymentFiles, ["thesiswdw", "order-final-payment"]);
+        await OrderApi.finalPayment({ order_id: f.order_id, final_payment_amount: f.final_payment_amount, final_payment_screenshot_files: upload.getRources(this.finalPaymentFiles).filter(Boolean)[0] });
+        this.$message.success("尾款已添加"); this.finalPaymentVisible = false; this.loadOrders();
+      } finally { this.saving = false; }
+    },
+    openReport(order, report) {
+      this.reportOrder = order;
+      const currentUser = this.$auth.user();
+      this.reportForm = {
+        ...emptyReportForm(),
+        ...(report || {}),
+        order_id: order.id,
+        publisher_user_id: this.isOptimizerRole && currentUser ? currentUser.id : (report ? report.publisher_user_id : order.optimizer_id),
+        current_mention_rate: report && report.current_mention_rate !== null ? Number(report.current_mention_rate) : undefined,
+      };
+      this.reportVisible = true;
+    },
+    async saveReport() {
+      const f = this.reportForm;
+      if (!f.project_name || !f.service_cycle || !f.optimization_stage || !f.publisher_user_id) return this.$message.warning("请填写项目名称、服务周期、优化阶段和发文人");
+      this.saving = true;
+      try {
+        await OrderApi.saveOptimizationReport({ ...f });
+        this.$message.success(f.id ? "报告已更新" : "报告已保存");
+        this.reportVisible = false;
+        if (this.reportListVisible) this.loadReports();
+      } finally { this.saving = false; }
+    },
+    openReportList(row) {
+      this.reportOrder = row;
+      this.reports.page = 1;
+      this.reportListVisible = true;
+      this.loadReports();
+    },
+    loadReports() {
+      if (!this.reportOrder) return;
+      this.reports.loading = true;
+      OrderApi.optimizationReports({ order_id: this.reportOrder.id, page: this.reports.page, pageSize: this.reports.pageSize })
+        .then(res => { this.reports.list = res.list || []; this.reports.total = res.total || 0; })
+        .finally(() => { this.reports.loading = false; });
+    },
+    reportTableChange(pagination) { this.reports.page = pagination.current; this.reports.pageSize = pagination.pageSize; this.loadReports(); },
     transitionActions(row) { const map = [{ key: "submit_sales_review", label: "提交审核", to: "sales_review" }, { key: "approve_sales", label: "审核通过", to: "finance_confirm" }, { key: "return_draft", label: "退回草稿", to: "draft" }, { key: "confirm_finance", label: "财务确认", to: "tech_assign" }]; return map.filter(item => this.hasAction(row, item.key)); },
     handleTransition(row, action) {
       if (action.key === "confirm_finance") {
@@ -452,6 +600,7 @@ export default {
   /deep/ .finance-paid-only .attachment-grid { display: none; }
   /deep/ .finance-paid-only .paid-amount-field { margin-top: 8px; }
   .finance-confirm-tip { padding: 12px 14px; border-radius: 8px; color: #627089; background: #f5f8fa; }
+  .order-list-count { margin-left: 8px; color: #08a88d; font-size: 14px; font-weight: 500; }
 }
 .modal-grid { gap: 0 22px; }
 .form-section-title { margin: 6px 0 18px; padding-left: 10px; border-left: 3px solid #08a88d; color: #172744; font-size: 16px; font-weight: 600; }
